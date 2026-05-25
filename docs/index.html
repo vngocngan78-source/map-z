@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>China 3D Map — Interactive 3D Map of China</title>
+  <link rel="stylesheet" href="demo.css">
+  <!-- Three.js import map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <h1 class="header-title">China 3D Map <span class="header-version">v1.0.0</span></h1>
+    <p class="header-desc">Interactive 3D map of China · Click provinces to explore · Scroll to zoom · Drag to rotate</p>
+  </header>
+
+  <!-- Main Content -->
+  <div class="main-layout">
+    <!-- Map Container -->
+    <div id="map-container" class="map-container"></div>
+
+    <!-- Control Panel -->
+    <aside class="control-panel" id="control-panel">
+      <div class="panel-section">
+        <h3 class="panel-title">Theme</h3>
+        <div class="theme-switcher">
+          <button class="theme-btn active" data-theme="light">Light</button>
+          <button class="theme-btn" data-theme="dark">Dark</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3 class="panel-title">Info</h3>
+        <div id="province-info" class="province-info">
+          <p class="info-placeholder">Click a province to see details</p>
+        </div>
+      </div>
+      <div class="panel-section">
+        <h3 class="panel-title">Legend</h3>
+        <div id="legend" class="legend"></div>
+      </div>
+      <div class="panel-section">
+        <p class="shortcut-hint">Press <kbd>R</kbd> to reset view</p>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Tooltip -->
+  <div id="tooltip" class="tooltip hidden"></div>
+
+  <!-- App Scripts -->
+  <script type="module" src="demo.js"></script>
+</body>
+</html>
