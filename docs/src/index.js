@@ -81,7 +81,7 @@ export class China3DMap {
    */
   async load(options = {}) {
     const geoUrl = options.geoUrl || 
-      'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
+      './china.geojson';
 
     try {
       const response = await fetch(geoUrl);
