@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>全国GDP分布 — map-z</title>
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#080a0f; font-family:-apple-system,'PingFang SC',sans-serif; color:#fff; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+    header { padding:12px 20px; background:rgba(8,10,15,0.92); border-bottom:1px solid rgba(0,201,255,0.2); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .logo { font-size:18px; font-weight:700; }
+    .logo em { color:#00c9ff; font-style:normal; }
+    .breadcrumb { display:flex; align-items:center; gap:6px; font-size:12px; color:rgba(255,255,255,0.35); }
+    .bc-item { color:rgba(255,255,255,0.75); cursor:pointer; transition:color 0.2s; }
+    .bc-item:hover { color:#00c9ff; }
+    .main { flex:1; display:flex; overflow:hidden; position:relative; }
+    #map { flex:1; }
+    .sidebar { width:220px; background:rgba(8,10,15,0.88); border-left:1px solid rgba(0,201,255,0.1); overflow-y:auto; flex-shrink:0; }
+    .s-section { padding:14px 16px; border-bottom:1px solid rgba(255,255,255,0.05); }
+    .s-title { font-size:10px; font-weight:600; letter-spacing:2px; color:rgba(0,201,255,0.6); text-transform:uppercase; margin-bottom:10px; }
+    .data-item { display:flex; align-items:center; gap:6px; padding:4px 0; cursor:pointer; }
+    .data-item:hover .data-name { color:#00c9ff; }
+    .data-name { font-size:12px; color:rgba(255,255,255,0.6); min-width:32px; transition:color 0.2s; }
+    .data-bar-wrap { flex:1; height:3px; background:rgba(255,255,255,0.06); border-radius:2px; }
+    .data-bar { height:100%; border-radius:2px; background:#00c9ff; }
+    .data-val { font-size:11px; color:#00c9ff; min-width:36px; text-align:right; }
+    .legend { display:flex; align-items:center; gap:8px; }
+    .legend-bar { flex:1; height:5px; border-radius:3px; background:linear-gradient(to right,#001a2e,#00c9ff); }
+    .legend-label { font-size:10px; color:rgba(255,255,255,0.3); }
+    .tip { font-size:11px; color:rgba(255,255,255,0.3); line-height:1.9; }
+    #tooltip { position:absolute; background:rgba(8,10,15,0.95); border:1px solid rgba(0,201,255,0.35); border-radius:8px; padding:10px 14px; font-size:13px; pointer-events:none; display:none; z-index:100; box-shadow:0 0 20px rgba(0,201,255,0.15); }
+    #tooltip .t-name { font-weight:600; margin-bottom:4px; }
+    #tooltip .t-val { font-size:12px; color:rgba(255,255,255,0.5); }
+    #tooltip .t-num { color:#00c9ff; font-weight:700; }
+    #back-btn { position:absolute; top:12px; left:12px; background:rgba(8,10,15,0.9); border:1px solid rgba(0,201,255,0.4); color:#00c9ff; padding:6px 14px; border-radius:20px; font-size:12px; cursor:pointer; display:none; z-index:50; }
+    #back-btn:hover { background:rgba(0,201,255,0.1); }
+    #loading { position:absolute; inset:0; background:#080a0f; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:200; }
+    .spinner { width:36px; height:36px; border:2px solid rgba(0,201,255,0.2); border-top-color:#00c9ff; border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:12px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .loading-text { font-size:13px; color:rgba(0,201,255,0.6); letter-spacing:2px; }
+    .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display:none !important; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:10px">
+    <div class="logo">map<em>-z</em></div>
+    <span style="font-size:12px;color:rgba(255,255,255,0.3)">全国GDP分布 · 3D区域地图</span>
+  </div>
+  <div class="breadcrumb" id="breadcrumb">
+    <span class="bc-item" onclick="drillUp(0)">全国</span>
+  </div>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">地图加载中...</div>
+  </div>
+  <button id="back-btn" onclick="drillBack()">← 返回上级</button>
+  <div id="tooltip">
+    <div class="t-name" id="tt-name"></div>
+    <div class="t-val">GDP：<span class="t-num" id="tt-val"></span> 亿元</div>
+  </div>
+  <div class="sidebar">
+    <div class="s-section">
+      <div class="s-title">图例</div>
+      <div class="legend">
+        <span class="legend-label">低</span>
+        <div class="legend-bar"></div>
+        <span class="legend-label">高</span>
+      </div>
+    </div>
+    <div class="s-section">
+      <div class="s-title">GDP排名</div>
+      <div id="data-list"></div>
+    </div>
+    <div class="s-section">
+      <div class="s-title">飞线来源</div>
+      <div id="arc-list"></div>
+    </div>
+    <div class="s-section">
+      <div class="s-title">操作说明</div>
+      <p class="tip">点击省份 → 下钻查看<br>拖拽旋转视角<br>滚轮缩放地图<br>悬停查看数值</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 数据 =====
+const REGION_DATA = [
+  {name:'广东',value:135000,adcode:'440000'},{name:'江苏',value:122000,adcode:'320000'},
+  {name:'山东',value:92000,adcode:'370000'},{name:'浙江',value:82000,adcode:'330000'},
+  {name:'河南',value:62000,adcode:'410000'},{name:'四川',value:57000,adcode:'510000'},
+  {name:'湖北',value:55000,adcode:'420000'},{name:'福建',value:52000,adcode:'350000'},
+  {name:'湖南',value:50000,adcode:'430000'},{name:'上海',value:47000,adcode:'310000'},
+  {name:'安徽',value:46000,adcode:'340000'},{name:'北京',value:43000,adcode:'110000'},
+  {name:'河北',value:42000,adcode:'130000'},{name:'陕西',value:33000,adcode:'610000'},
+  {name:'江西',value:32000,adcode:'360000'},{name:'重庆',value:30000,adcode:'500000'},
+  {name:'辽宁',value:29000,adcode:'210000'},{name:'云南',value:28000,adcode:'530000'},
+  {name:'广西',value:26000,adcode:'450000'},{name:'山西',value:25000,adcode:'140000'},
+  {name:'天津',value:17000,adcode:'120000'},{name:'贵州',value:21000,adcode:'520000'},
+  {name:'黑龙江',value:16000,adcode:'230000'},{name:'吉林',value:13000,adcode:'220000'},
+  {name:'内蒙古',value:24000,adcode:'150000'},{name:'新疆',value:18000,adcode:'650000'},
+  {name:'甘肃',value:11000,adcode:'620000'},{name:'海南',value:7000,adcode:'460000'},
+  {name:'宁夏',value:5000,adcode:'640000'},{name:'青海',value:4000,adcode:'630000'},
+  {name:'西藏',value:2400,adcode:'540000'},
+];
+
+const ARC_DATA = [
+  {from:'广东',to:'北京',fromCoord:[113.26,23.13],toCoord:[116.40,39.90],value:8500},
+  {from:'江苏',to:'北京',fromCoord:[118.76,32.06],toCoord:[116.40,39.90],value:7200},
+  {from:'上海',to:'北京',fromCoord:[121.47,31.23],toCoord:[116.40,39.90],value:6800},
+  {from:'浙江',to:'上海',fromCoord:[120.15,30.27],toCoord:[121.47,31.23],value:5500},
+  {from:'四川',to:'重庆',fromCoord:[104.06,30.57],toCoord:[106.55,29.56],value:4200},
+  {from:'山东',to:'北京',fromCoord:[117.00,36.67],toCoord:[116.40,39.90],value:3900},
+  {from:'广东',to:'上海',fromCoord:[113.26,23.13],toCoord:[121.47,31.23],value:3600},
+  {from:'湖北',to:'北京',fromCoord:[114.30,30.59],toCoord:[116.40,39.90],value:2800},
+];
+
+const MAX_VAL = Math.max(...REGION_DATA.map(d=>d.value));
+let drillStack = [];
+let currentAdcode = '100000';
+let glowTimer = null;
+
+// ===== 地图初始化 =====
+const map = new maplibregl.Map({
+  container: 'map',
+  style: { version:8, sources:{}, layers:[{id:'bg',type:'background',paint:{'background-color':'#080a0f'}}] },
+  center:[106,36], zoom:3.6, pitch:52, bearing:-6, antialias:true
+});
+
+map.on('load', async () => {
+  await loadRegion('100000');
+  renderArcs();
+  renderSidebar();
+  document.getElementById('loading').style.display = 'none';
+});
+
+// ===== 区域加载 =====
+async function loadRegion(adcode) {
+  currentAdcode = adcode;
+  if (glowTimer) clearInterval(glowTimer);
+
+  const url = `https://geo.datav.aliyun.com/areas_v3/bound/${adcode}_full.json`;
+  const res = await fetch(url);
+  const geojson = await res.json();
+
+  geojson.features.forEach(f => {
+    const raw = f.properties.name || '';
+    const short = raw.replace(/省|市|壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区/g,'');
+    const match = REGION_DATA.find(d => short.includes(d.name) || d.name.includes(short));
+    f.properties._value  = match ? match.value : 0;
+    f.properties._name   = match ? match.name : raw;
+    f.properties._adcode = f.properties.adcode || '';
+  });
+
+  // 清除旧图层
+  ['glow2','glow1','border','top','extrusion'].forEach(id => {
+    if (map.getLayer('p-'+id)) map.removeLayer('p-'+id);
+  });
+  if (map.getSource('provinces')) map.removeSource('provinces');
+
+  map.addSource('provinces', {type:'geojson', data:geojson});
+
+  // 3D挤出
+  map.addLayer({id:'p-extrusion', type:'fill-extrusion', source:'provinces', paint:{
+    'fill-extrusion-color':['case',['>', ['get','_value'], 0],
+      ['interpolate',['linear'],['get','_value'], 0,'#001a2e', MAX_VAL*0.4,'#0066cc', MAX_VAL,'#00c9ff'],
+      '#0d0f14'],
+    'fill-extrusion-height':['*',['get','_value'], adcode==='100000' ? 0.08 : 0.15],
+    'fill-extrusion-base':0,
+    'fill-extrusion-opacity':0.9
+  }});
+
+  // 顶面压暗
+  map.addLayer({id:'p-top', type:'fill', source:'provinces', paint:{
+    'fill-color':'#080a0f','fill-opacity':0.45
+  }});
+
+  // 边界
+  map.addLayer({id:'p-border', type:'line', source:'provinces', paint:{
+    'line-color':'rgba(255,255,255,0.06)','line-width':0.5
+  }});
+
+  // 流光宽线（光晕）
+  map.addLayer({id:'p-glow1', type:'line', source:'provinces', paint:{
+    'line-color':['case',['>', ['get','_value'], 0],'#00c9ff','rgba(0,0,0,0)'],
+    'line-width':5,'line-opacity':0.2,'line-blur':8
+  }});
+
+  // 流光细线（亮边）
+  map.addLayer({id:'p-glow2', type:'line', source:'provinces', paint:{
+    'line-color':['case',['>', ['get','_value'], 0],'#00c9ff','rgba(0,0,0,0)'],
+    'line-width':1,'line-opacity':0.9
+  }});
+
+  // 流光脉冲动画
+  let glowVal = 0.9, glowDir = -1;
+  glowTimer = setInterval(() => {
+    glowVal += glowDir * 0.03;
+    if (glowVal <= 0.25) glowDir = 1;
+    if (glowVal >= 0.9)  glowDir = -1;
+    if (map.getLayer('p-glow2')) map.setPaintProperty('p-glow2','line-opacity', glowVal);
+    if (map.getLayer('p-glow1')) map.setPaintProperty('p-glow1','line-opacity', (1-glowVal)*0.3);
+  }, 50);
+
+  // Tooltip
+  const tooltip = document.getElementById('tooltip');
+  map.off('mousemove','p-extrusion');
+  map.off('mouseleave','p-extrusion');
+  map.off('click','p-extrusion');
+
+  map.on('mousemove','p-extrusion', e => {
+    const p = e.features?.[0]?.properties;
+    if (!p) { tooltip.style.display='none'; return; }
+    document.getElementById('tt-name').textContent = p._name;
+    document.getElementById('tt-val').textContent  = p._value ? Number(p._value).toLocaleString() : '暂无数据';
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.point.x+16)+'px';
+    tooltip.style.top  = (e.point.y-8)+'px';
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave','p-extrusion', () => {
+    tooltip.style.display = 'none';
+    map.getCanvas().style.cursor = '';
+  });
+
+  // 下钻点击
+  map.on('click','p-extrusion', e => {
+    const p = e.features?.[0]?.properties;
+    if (!p || !p._adcode) return;
+    const ac = String(p._adcode);
+    // 省级 adcode 末4位为0000，市级末2位为00
+    if (ac.endsWith('0000')) drillDown(ac, p._name);
+    else if (ac.endsWith('00')) drillDown(ac, p._name);
+  });
+
+  document.getElementById('back-btn').style.display = drillStack.length > 0 ? 'block' : 'none';
+  updateBreadcrumb();
+}
+
+// ===== 下钻 =====
+function drillDown(adcode, name) {
+  drillStack.push({adcode: currentAdcode, name});
+  if (map.getLayer('arcs')) map.setLayoutProperty('arcs','visibility','none');
+  if (map.getLayer('arcs-bg')) map.setLayoutProperty('arcs-bg','visibility','none');
+  document.getElementById('loading').style.display = 'flex';
+  loadRegion(adcode).then(() => {
+    document.getElementById('loading').style.display = 'none';
+  });
+}
+
+function drillBack() {
+  if (!drillStack.length) return;
+  const prev = drillStack.pop();
+  document.getElementById('loading').style.display = 'flex';
+  loadRegion(prev.adcode).then(() => {
+    document.getElementById('loading').style.display = 'none';
+    if (drillStack.length === 0) {
+      if (map.getLayer('arcs')) map.setLayoutProperty('arcs','visibility','visible');
+      if (map.getLayer('arcs-bg')) map.setLayoutProperty('arcs-bg','visibility','visible');
+    }
+  });
+}
+
+function drillUp(index) {
+  if (index === 0) {
+    drillStack = [];
+    document.getElementById('loading').style.display = 'flex';
+    loadRegion('100000').then(() => {
+      document.getElementById('loading').style.display = 'none';
+      if (map.getLayer('arcs')) map.setLayoutProperty('arcs','visibility','visible');
+      if (map.getLayer('arcs-bg')) map.setLayoutProperty('arcs-bg','visibility','visible');
+    });
+  }
+}
+
+function updateBreadcrumb() {
+  let html = `<span class="bc-item" onclick="drillUp(0)">全国</span>`;
+  drillStack.forEach((item,i) => {
+    html += `<span style="opacity:0.4">›</span><span class="bc-item">${item.name}</span>`;
+  });
+  document.getElementById('breadcrumb').innerHTML = html;
+}
+
+// ===== 飞线渲染 =====
+function renderArcs() {
+  const maxArc = Math.max(...ARC_DATA.map(d=>d.value));
+  const features = ARC_DATA.map(d => ({
+    type:'Feature',
+    geometry:{ type:'LineString', coordinates: makeArc(d.fromCoord, d.toCoord) },
+    properties:{ value:d.value, from:d.from, to:d.to }
+  }));
+
+  map.addSource('arcs',{type:'geojson',data:{type:'FeatureCollection',features}});
+
+  // 飞线光晕
+  map.addLayer({id:'arcs-bg', type:'line', source:'arcs', paint:{
+    'line-color':'#00c9ff',
+    'line-width':['interpolate',['linear'],['get','value'],0,1,maxArc,4],
+    'line-opacity':0.15, 'line-blur':4
+  }});
+
+  // 飞线主体
+  map.addLayer({id:'arcs', type:'line', source:'arcs', paint:{
+    'line-color':'#00c9ff',
+    'line-width':['interpolate',['linear'],['get','value'],0,0.5,maxArc,2],
+    'line-opacity':0.75,
+    'line-dasharray':[0,0]
+  }});
+
+  // 飞线流动（dasharray 动画）
+  let dash = 0;
+  setInterval(() => {
+    dash = (dash + 0.5) % 8;
+    const d1 = Math.max(0, 4 - dash);
+    const d2 = Math.min(8, dash + 4);
+    if (map.getLayer('arcs')) map.setPaintProperty('arcs','line-dasharray',[d1, d2]);
+  }, 60);
+
+  // 飞线侧边栏
+  document.getElementById('arc-list').innerHTML = [...ARC_DATA]
+    .sort((a,b)=>b.value-a.value).slice(0,6)
+    .map(d=>`<div class="data-item">
+      <span class="data-name" style="min-width:70px;font-size:11px">${d.from} → ${d.to}</span>
+      <span class="data-val">${(d.value/100).toFixed(0)}亿</span>
+    </div>`).join('');
+}
+
+// 弧线插值
+function makeArc(from, to, steps=40) {
+  const pts = [];
+  for (let i=0; i<=steps; i++) {
+    const t = i/steps;
+    const lng = from[0]+(to[0]-from[0])*t;
+    const lat = from[1]+(to[1]-from[1])*t;
+    const arc = Math.sin(Math.PI*t)*6;
+    pts.push([lng, lat+arc]);
+  }
+  return pts;
+}
+
+// ===== 侧边栏 =====
+function renderSidebar() {
+  document.getElementById('data-list').innerHTML = [...REGION_DATA]
+    .sort((a,b)=>b.value-a.value)
+    .map(d=>{
+      const pct = Math.round(d.value/MAX_VAL*100);
+      return `<div class="data-item">
+        <span class="data-name">${d.name}</span>
+        <div class="data-bar-wrap"><div class="data-bar" style="width:${pct}%"></div></div>
+        <span class="data-val">${(d.value/10000).toFixed(1)}万亿</span>
+      </div>`;
+    }).join('');
+}
+</script>
+</body>
+</html>
