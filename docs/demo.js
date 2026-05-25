@@ -5,7 +5,7 @@
  * It loads real provincial GDP data and renders an interactive 3D visualization.
  */
 
-import { China3DMap } from '../src/index.js';
+import { China3DMap } from './src/index.js';
 
 // -------- Demo: Provincial GDP Data (2023 estimates, unit: billion CNY) --------
 const gdpData = {
