@@ -1,0 +1,65 @@
+name: map-z-agent
+version: 1.0.0
+description: Claude AI Agent，根据用户描述自动生成3D地图
+
+model: claude-sonnet-4-20250514
+
+skill: ../SKILL.md
+
+triggers:
+  - "生成.*地图"
+  - "3D地图"
+  - "热力图"
+  - "飞线地图"
+  - "区域.*可视化"
+  - "map-z"
+
+input_schema:
+  type: object
+  properties:
+    region:
+      type: string
+      description: 地图范围，如"全国"、"广东省"、"北京市"
+      default: "全国"
+    data:
+      type: array
+      description: 区域数据，格式 [{name, value}]
+      items:
+        type: object
+        properties:
+          name: { type: string }
+          value: { type: number }
+    arcs:
+      type: array
+      description: 飞线数据，格式 [{from, to, fromCoord, toCoord, value}]
+      default: []
+    theme:
+      type: string
+      enum: [cyan, orange, green, purple]
+      default: cyan
+    title:
+      type: string
+      description: 地图标题
+    label:
+      type: string
+      description: 数据标签，如"GDP（亿元）"、"销售额"
+
+output:
+  type: html_file
+  description: 完整可运行的单 HTML 文件，包含流光边界、飞线、下钻交互
+
+instructions: |
+  你是一个3D地图生成专家。
+  
+  收到用户请求时：
+  1. 识别地图范围（全国/省/市）
+  2. 如用户未提供数据，生成合理的示例数据
+  3. 根据场景选择配色主题
+  4. 严格按照 SKILL.md 中的模板生成完整 HTML
+  5. 输出的 HTML 文件双击即可在浏览器运行，无需任何安装
+
+  注意事项：
+  - 数据标签要和场景匹配（GDP/人口/销售额等）
+  - 飞线数据只在有明确流向关系时生成
+  - 默认开启下钻（全国→省→市→区县）
+  - 配色选择参考 SKILL.md 配色表
