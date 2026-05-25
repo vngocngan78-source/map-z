@@ -1,0 +1,38 @@
+{
+  "name": "china-3d-map",
+  "version": "1.0.0",
+  "description": "A beautiful 3D interactive map of China built with Three.js. Visualize provincial data with extruded 3D regions, city markers, and a designer-friendly theme system.",
+  "main": "src/index.js",
+  "files": [
+    "src/",
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev": "npx serve demo & open http://localhost:3000",
+    "build": "node scripts/build.js",
+    "preview": "npx serve dist"
+  },
+  "keywords": [
+    "china",
+    "map",
+    "3d",
+    "threejs",
+    "geojson",
+    "visualization",
+    "data-viz",
+    "provinces",
+    "cities",
+    "interactive-map"
+  ],
+  "author": "Zhang Tiantian",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/china-3d-map"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
